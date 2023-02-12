@@ -16,7 +16,10 @@ defmodule ExLiveUrl.MixProject do
       ],
       package: [
         licenses: ["MIT"],
-        links: %{}
+        links: %{
+          "GitHub" => "https://github.com/AHBruns/ex_live_url",
+          "Hex" => "https://hex.pm/packages/ex_live_url"
+        }
       ]
     ]
   end
