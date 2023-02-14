@@ -45,7 +45,7 @@ defmodule ExLiveUrl do
       ...>   @impl Phoenix.LiveComponent
       ...>   def handle_event("toggle", _payload, socket) do
       ...>     :ok = ExLiveUrl.send_operation(fn url ->
-      ...>       %ExLiveUrl.Operation.push_patch(to: ExLiveUrl.Url.with_params(url, fn params ->
+      ...>       ExLiveUrl.Operation.push_patch(to: ExLiveUrl.Url.with_params(url, fn params ->
       ...>         Map.update(params, "direction", "asc", fn
       ...>           "asc" -> "desc"
       ...>           "desc" -> "asc"
@@ -101,6 +101,8 @@ defmodule ExLiveUrl do
   > Tip: This function may only be called with the root live view's socket. If you need to, for example, call this from a live component, you should use `send_operation/2`.
 
   Synchronously build and apply an operation. The build function takes the current `ExLiveUrl.Url` as an argument and must return an `ExLiveUrl.Operation`. The given pid must be a root live view.
+
+  This is an alias for `ExLiveUrl.Operation.apply/2`.
   """
   @doc since: "0.2.0"
   @spec apply_operation(Phoenix.LiveView.Socket.t(), ExLiveUrl.Operation.t()) ::

@@ -20,7 +20,33 @@ defmodule ExLiveUrl.Operation do
   end
 
   @doc """
-  Build a push navigation operation. It supports the same forms as `Phoenix.LiveView.push_patch/2` with the exception that `:to` must be a `ExLiveUrl.Url` rather than a relative url.
+  Build a push patch operation.
+
+      iex> ExLiveUrl.Operation.push_patch(to: ExLiveUrl.Url.from_string("https://google.com"))
+      %ExLiveUrl.Operation{
+        url: %ExLiveUrl.Url{
+          scheme: :https,
+          host: "google.com",
+          port: 443,
+          path: "/",
+          params: %{}
+        },
+        mode: :intra_view,
+        stack_operation: :push
+      }
+
+      iex> ExLiveUrl.Operation.push_patch(to: ExLiveUrl.Url.from_string("https://google.com"), replace: true)
+      %ExLiveUrl.Operation{
+        url: %ExLiveUrl.Url{
+          scheme: :https,
+          host: "google.com",
+          port: 443,
+          path: "/",
+          params: %{}
+        },
+        mode: :intra_view,
+        stack_operation: :replace
+      }
   """
   @doc since: "0.2.0"
   @spec push_patch([to: ExLiveUrl.Url.t()] | [to: ExLiveUrl.Url.t(), replace: true]) ::
@@ -43,7 +69,33 @@ defmodule ExLiveUrl.Operation do
   end
 
   @doc """
-  Build a push navigation operation. It supports the same forms as `Phoenix.LiveView.push_navigate/2` with the exception that `:to` must be a `ExLiveUrl.Url` rather than a relative url.
+  Build a push navigate operation.
+
+      iex> ExLiveUrl.Operation.push_navigate(to: ExLiveUrl.Url.from_string("https://google.com"))
+      %ExLiveUrl.Operation{
+        url: %ExLiveUrl.Url{
+          scheme: :https,
+          host: "google.com",
+          port: 443,
+          path: "/",
+          params: %{}
+        },
+        mode: :inter_view,
+        stack_operation: :push
+      }
+
+      iex> ExLiveUrl.Operation.push_navigate(to: ExLiveUrl.Url.from_string("https://google.com"), replace: true)
+      %ExLiveUrl.Operation{
+        url: %ExLiveUrl.Url{
+          scheme: :https,
+          host: "google.com",
+          port: 443,
+          path: "/",
+          params: %{}
+        },
+        mode: :inter_view,
+        stack_operation: :replace
+      }
   """
   @doc since: "0.2.0"
   @spec push_navigate([to: ExLiveUrl.Url.t()] | [to: ExLiveUrl.Url.t(), replace: true]) ::
@@ -66,32 +118,46 @@ defmodule ExLiveUrl.Operation do
   end
 
   @doc """
-  Build a redirect operation. It supports the following forms.
+  Build a redirect operation.
 
-  Redirect to a view.
+      iex> ExLiveUrl.Operation.redirect(to: ExLiveUrl.Url.from_string("https://google.com"))
+      %ExLiveUrl.Operation{
+        url: %ExLiveUrl.Url{
+          scheme: :https,
+          host: "google.com",
+          port: 443,
+          path: "/",
+          params: %{}
+        },
+        mode: :inter_view,
+        stack_operation: :redirect
+      }
 
-  ```elixir
-  operation = ExLiveUrl.Operation.redirect(
-    to:
-      url
-      |> ExLiveUrl.Url.with_path("/some/view")
-      |> ExLiveUrl.Url.with_params(%{})
-  )
-  ```
+      iex> ExLiveUrl.Operation.redirect(external: "https://google.com")
+      %ExLiveUrl.Operation{
+        url: %ExLiveUrl.Url{
+          scheme: :https,
+          host: "google.com",
+          port: 443,
+          path: "/",
+          params: %{}
+        },
+        mode: :external,
+        stack_operation: :redirect
+      }
 
-  Redirect to an external url.
-
-  ```elixir
-  operation = ExLiveUrl.Operation.redirect(to: "https://google.com")
-  ```
-
-  Redirect to an external url using an `ExLiveUrl.Url`.
-
-  ```elixir
-  operation = ExLiveUrl.Operation.redirect(
-    to: ExLiveUrl.Url.from_string("https://google.com")
-  )
-  ```
+      iex> ExLiveUrl.Operation.redirect(external: ExLiveUrl.Url.from_string("https://google.com"))
+      %ExLiveUrl.Operation{
+        url: %ExLiveUrl.Url{
+          scheme: :https,
+          host: "google.com",
+          port: 443,
+          path: "/",
+          params: %{}
+        },
+        mode: :external,
+        stack_operation: :redirect
+      }
   """
   @doc since: "0.2.0"
   @spec redirect([to: ExLiveUrl.Url.t()] | [external: String.t() | ExLiveUrl.Url.t()]) ::
@@ -117,14 +183,28 @@ defmodule ExLiveUrl.Operation do
   end
 
   @doc """
-  Apply an operation to the given socket. This will call either `Phoenix.LiveView.push_patch/2`, `Phoenix.LiveView.push_navigate/2`, or `Phoenix.LiveView.redirect/2`. E.g.
+  Apply an operation to the given socket.
 
-  ```elixir
-  socket = ExLiveUrl.Operation.apply(
-    socket,
-    ExLiveUrl.Operation.redirect(external: "https://google.com")
-  )
-  ```
+      iex> socket = %Phoenix.LiveView.Socket{
+      ...>   assigns: %{
+      ...>     :__changed__ => %{},
+      ...>     ExLiveUrl => ExLiveUrl.Url.from_string("http://apple.com")
+      ...>   }
+      ...> }
+      iex> ExLiveUrl.Operation.apply(socket, ExLiveUrl.Operation.redirect(external: "https://google.com"))
+      %Phoenix.LiveView.Socket{
+        assigns: %{
+          :__changed__ => %{},
+          ExLiveUrl => %ExLiveUrl.Url{
+            scheme: :http,
+            host: "apple.com",
+            port: 80,
+            path: "/",
+            params: %{}
+          }
+        },
+        redirected: {:redirect, %{external: "https://google.com:443/?"}}
+      }
   """
   @doc since: "0.2.0"
   @spec apply(Phoenix.LiveView.Socket.t(), t()) :: Phoenix.LiveView.Socket.t()

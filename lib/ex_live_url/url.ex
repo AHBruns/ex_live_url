@@ -26,6 +26,17 @@ defmodule ExLiveUrl.Url do
 
   @doc """
   This function serializes a `ExLiveUrl.Url` to a relative link, aka just the path and query params.
+
+      iex> ExLiveUrl.Url.to_relative(
+      ...>   %ExLiveUrl.Url{
+      ...>     scheme: :https,
+      ...>     host: "google.com",
+      ...>     port: 443,
+      ...>     path: "/abc",
+      ...>     params: %{"a" => "b"}
+      ...>   }
+      ...> )
+      "/abc?a=b"
   """
   @doc since: "0.2.0"
   @spec to_relative(t()) :: String.t()
@@ -35,14 +46,30 @@ defmodule ExLiveUrl.Url do
 
   @doc """
   This function turns a `URI` into a `ExLiveUrl.Url`. The given `URI` must be absolute.
+
+      iex> ExLiveUrl.Url.from_uri(
+      ...>   %URI{
+      ...>     scheme: "https",
+      ...>     host: "google.com",
+      ...>     port: 443,
+      ...>     path: "/abc",
+      ...>     query: "a[]=b&a[]=c",
+      ...>   }
+      ...> )
+      %ExLiveUrl.Url{
+        scheme: :https,
+        host: "google.com",
+        port: 443,
+        path: "/abc",
+        params: %{"a" => ["b", "c"]}
+      }
   """
   @doc since: "0.2.0"
   @spec from_uri(URI.t()) :: t()
   def from_uri(%URI{} = uri)
       when uri.scheme in ["http", "https"] and
              not is_nil(uri.host) and
-             not is_nil(uri.port) and
-             not is_nil(uri.path) do
+             not is_nil(uri.port) do
     scheme =
       case uri.scheme do
         "http" -> :http
@@ -50,29 +77,61 @@ defmodule ExLiveUrl.Url do
       end
 
     params = Plug.Conn.Query.decode(uri.query || "")
+    path = uri.path || "/"
 
     %__MODULE__{
       scheme: scheme,
       host: uri.host,
       port: uri.port,
-      path: uri.path,
+      path: path,
       params: params
     }
   end
 
   @doc """
   This function turns a string into a `ExLiveUrl.Url`. The given string must be absolute url.
+
+      iex> ExLiveUrl.Url.from_string("https://google.com/abc?a[]=b&a[]=c")
+      %ExLiveUrl.Url{
+        scheme: :https,
+        host: "google.com",
+        port: 443,
+        path: "/abc",
+        params: %{"a" => ["b", "c"]}
+      }
   """
   @doc since: "0.2.0"
   @spec from_string(String.t()) :: t()
   def from_string("" <> _ = string) do
     string
-    |> URI.new!()
+    |> URI.parse()
     |> from_uri()
   end
 
   @doc """
   This function sets the scheme of an `ExLiveUrl.Url` either directly or via an updater function.
+
+      iex> "https://google.com/abc"
+      ...> |> ExLiveUrl.Url.from_string()
+      ...> |> ExLiveUrl.Url.with_scheme(:http)
+      %ExLiveUrl.Url{
+        scheme: :http,
+        host: "google.com",
+        port: 443,
+        path: "/abc",
+        params: %{}
+      }
+
+      iex> "https://google.com/abc"
+      ...> |> ExLiveUrl.Url.from_string()
+      ...> |> ExLiveUrl.Url.with_scheme(fn :https -> :http end)
+      %ExLiveUrl.Url{
+        scheme: :http,
+        host: "google.com",
+        port: 443,
+        path: "/abc",
+        params: %{}
+      }
   """
   @doc since: "0.2.0"
   @spec with_scheme(t(), scheme_or_updater :: :http | :https | (:http | :https -> :http | :https)) ::
@@ -85,8 +144,30 @@ defmodule ExLiveUrl.Url do
     %__MODULE__{url | scheme: scheme_fun.(url.scheme)}
   end
 
-  @doc """
+  @doc ~S"""
   This function sets the host of an `ExLiveUrl.Url` either directly or via an updater function.
+
+      iex> "https://google.com/abc"
+      ...> |> ExLiveUrl.Url.from_string()
+      ...> |> ExLiveUrl.Url.with_host("apple.com")
+      %ExLiveUrl.Url{
+        scheme: :https,
+        host: "apple.com",
+        port: 443,
+        path: "/abc",
+        params: %{}
+      }
+
+      iex> "https://google.com/abc"
+      ...> |> ExLiveUrl.Url.from_string()
+      ...> |> ExLiveUrl.Url.with_host(fn host -> "www.#{host}" end)
+      %ExLiveUrl.Url{
+        scheme: :https,
+        host: "www.google.com",
+        port: 443,
+        path: "/abc",
+        params: %{}
+      }
   """
   @doc since: "0.2.0"
   @spec with_host(t(), host_or_updater :: String.t() | (String.t() -> String.t())) :: t()
@@ -100,6 +181,28 @@ defmodule ExLiveUrl.Url do
 
   @doc """
   This function sets the port of an `ExLiveUrl.Url` either directly or via an updater function.
+
+      iex> "https://google.com/abc"
+      ...> |> ExLiveUrl.Url.from_string()
+      ...> |> ExLiveUrl.Url.with_port(1234)
+      %ExLiveUrl.Url{
+        scheme: :https,
+        host: "google.com",
+        port: 1234,
+        path: "/abc",
+        params: %{}
+      }
+
+      iex> "https://google.com/abc"
+      ...> |> ExLiveUrl.Url.from_string()
+      ...> |> ExLiveUrl.Url.with_port(fn port -> port + 1 end)
+      %ExLiveUrl.Url{
+        scheme: :https,
+        host: "google.com",
+        port: 444,
+        path: "/abc",
+        params: %{}
+      }
   """
   @doc since: "0.2.0"
   @spec with_port(
@@ -116,6 +219,28 @@ defmodule ExLiveUrl.Url do
 
   @doc """
   This function sets the path of an `ExLiveUrl.Url` either directly or via an updater function.
+
+      iex> "https://google.com/abc"
+      ...> |> ExLiveUrl.Url.from_string()
+      ...> |> ExLiveUrl.Url.with_path("/")
+      %ExLiveUrl.Url{
+        scheme: :https,
+        host: "google.com",
+        port: 443,
+        path: "/",
+        params: %{}
+      }
+
+      iex> "https://google.com/abc"
+      ...> |> ExLiveUrl.Url.from_string()
+      ...> |> ExLiveUrl.Url.with_path(fn path -> path <> "/efg" end)
+      %ExLiveUrl.Url{
+        scheme: :https,
+        host: "google.com",
+        port: 443,
+        path: "/abc/efg",
+        params: %{}
+      }
   """
   @doc since: "0.2.0"
   @spec with_path(t(), path_or_updater :: String.t() | (String.t() -> String.t())) :: t()
@@ -129,6 +254,28 @@ defmodule ExLiveUrl.Url do
 
   @doc """
   This function sets the params of an `ExLiveUrl.Url` either directly or via an updater function.
+
+      iex> "https://google.com/abc"
+      ...> |> ExLiveUrl.Url.from_string()
+      ...> |> ExLiveUrl.Url.with_params(%{"a" => ["b", "c"]})
+      %ExLiveUrl.Url{
+        scheme: :https,
+        host: "google.com",
+        port: 443,
+        path: "/abc",
+        params: %{"a" => ["b", "c"]}
+      }
+
+      iex> "https://google.com/abc"
+      ...> |> ExLiveUrl.Url.from_string()
+      ...> |> ExLiveUrl.Url.with_params(fn params -> Map.put(params, "a", ["b", "c"]) end)
+      %ExLiveUrl.Url{
+        scheme: :https,
+        host: "google.com",
+        port: 443,
+        path: "/abc",
+        params: %{"a" => ["b", "c"]}
+      }
   """
   @doc since: "0.2.0"
   @spec with_params(
