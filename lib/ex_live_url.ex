@@ -9,7 +9,7 @@ defmodule ExLiveUrl do
   ```elixir
   defp deps do
     [
-      {:ex_live_url, "~> 0.1.0"}
+      {:ex_live_url, "~> 0.2.0"}
     ]
   end
   ```
