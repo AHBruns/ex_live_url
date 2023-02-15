@@ -25,101 +25,93 @@ defmodule ExLiveUrl do
     # your live view implementation
   end
   ```
-
-  # Example
-
-  A common use case for url state in live views is to store sorting and filtering information. Here's a working example of how you can implement such a use case with `ExLiveUrl`.
-
-      iex> defmodule Example.SortControl do
-      ...>   use Phoenix.LiveComponent
-      ...>
-      ...>   @impl Phoenix.LiveComponent
-      ...>   def render(assigns) do
-      ...>     ~H"""
-      ...>     <button phx-click="toggle" phx-target={@myself}>
-      ...>       <%= @direction || "sort" %>
-      ...>     </button>
-      ...>     """
-      ...>   end
-      ...>
-      ...>   @impl Phoenix.LiveComponent
-      ...>   def handle_event("toggle", _payload, socket) do
-      ...>     :ok = ExLiveUrl.send_operation(fn url ->
-      ...>       ExLiveUrl.Operation.push_patch(to: ExLiveUrl.Url.with_params(url, fn params ->
-      ...>         Map.update(params, "direction", "asc", fn
-      ...>           "asc" -> "desc"
-      ...>           "desc" -> "asc"
-      ...>         end)
-      ...>       end))
-      ...>     end)
-      ...>
-      ...>     {:noreply, socket}
-      ...>   end
-      ...> end
-
-      iex> defmodule Example.LiveView do
-      ...>   use Phoenix.LiveView
-      ...>   on_mount ExLiveUrl
-      ...>
-      ...>   @impl Phoenix.LiveView
-      ...>   def render(assigns) do
-      ...>     ~H"""
-      ...>     <.live_component module={Example.SortControl} id="Example.SortControl" direction={@direction} />
-      ...>     <p :for={name <- @names}><%= name %></p>
-      ...>     """
-      ...>   end
-      ...>
-      ...>   @impl Phoenix.LiveView
-      ...>   def mount(_params, _session, socket) do
-      ...>     {:ok, assign(socket, :names, ["John", "Jimmy", "Jack", "Joe"])}
-      ...>   end
-      ...>
-      ...>   @impl Phoenix.LiveView
-      ...>   def handle_params(params, _uri, socket) do
-      ...>     {:ok,
-      ...>      socket
-      ...>      |> assign(:direction, params["direction"])
-      ...>      |> update(
-      ...>        :names,
-      ...>        fn names ->
-      ...>          case params["direction"] do
-      ...>            "desc" -> Enum.sort(names, fn name_1, name_2 -> name_1 <= name_2 end)
-      ...>            "asc" -> Enum.sort(names, fn name_1, name_2 -> name_1 >= name_2 end)
-      ...>            nil -> names
-      ...>          end
-      ...>        end
-      ...>      )}
-      ...>   end
-      ...> end
   '''
   @moduledoc since: "0.1.0"
 
   @doc false
-  defdelegate on_mount(arg, params, session, socket), to: ExLiveUrl.Server
+  def on_mount(key, _params, _session, socket) do
+    {:cont,
+     socket
+     |> Phoenix.LiveView.attach_hook(__MODULE__, :handle_params, fn params, uri, socket ->
+       {:cont, Phoenix.Component.assign(socket, key, ExLiveUrl.Url.new(params, uri))}
+     end)
+     |> Phoenix.LiveView.attach_hook(__MODULE__, :handle_info, fn maybe_operation, socket ->
+       if ExLiveUrl.Operation.is_operation?(maybe_operation) do
+         {:halt, ExLiveUrl.Operation.apply(maybe_operation, socket.assigns[key], socket)}
+       else
+         {:cont, socket}
+       end
+     end)}
+  end
 
   @doc """
-  > Tip: This function may only be called with the root live view's socket. If you need to, for example, call this from a live component, you should use `send_operation/2`.
+  Asynchronously annotates the socket for navigation within the current LiveView. Whenever this operation is eventually executed it calls `Phoenix.LiveView.push_navigate/2` internally.
 
-  Synchronously build and apply an operation. The build function takes the current `ExLiveUrl.Url` as an argument and must return an `ExLiveUrl.Operation`. The given pid must be a root live view.
+  ## Options
 
-  This is an alias for `ExLiveUrl.Operation.apply/2`.
+  - `:to` - a function which takes the current `ExLiveUrl.Url` and must return either a new `ExLiveUrl.Url` or a relative url string.
+  - `:replace` - the flag to replace the current history or push a new state. Defaults false.
+
+  ## Examples
+
+  ```elixir
+  ExLiveUrl.push_patch(to: fn url -> %ExLiveUrl.Url{url | path: ExLiveUrl.Path.new("/")} end)
+  ExLiveUrl.push_patch(to: fn _url -> "/"} end)
+  ExLiveUrl.push_patch(
+    to: fn url -> %ExLiveUrl.Url{url | path: ExLiveUrl.Path.new("/")} end,
+    replace: true
+  )
+  ```
   """
-  @doc since: "0.2.0"
-  @spec apply_operation(Phoenix.LiveView.Socket.t(), ExLiveUrl.Operation.t()) ::
-          Phoenix.LiveView.Socket.t()
-  defdelegate apply_operation(socket, operation), to: ExLiveUrl.Operation, as: :apply
+  @doc since: "0.3.0"
+  def push_patch(pid \\ self(), opts) do
+    opts |> ExLiveUrl.PushPatchOperation.new() |> ExLiveUrl.Operation.send(pid)
+  end
 
   @doc """
-  A special case of `send_operation/2` which uses `self()` as the given pid.
+  Asynchronously annotates the socket for navigation to another LiveView. Whenever this operation is eventually executed it calls `Phoenix.LiveView.push_navigate/2` internally.
+
+  ## Options
+
+  - `:to` - a function which takes the current `ExLiveUrl.Url` and must return either a new `ExLiveUrl.Url` or a relative url string.
+  - `:replace` - the flag to replace the current history or push a new state. Defaults false.
+
+  ## Examples
+
+  ```elixir
+  ExLiveUrl.push_navigate(to: fn url -> %ExLiveUrl.Url{url | path: ExLiveUrl.Path.new("/")} end)
+  ExLiveUrl.push_navigate(to: fn _url -> "/"} end)
+  ExLiveUrl.push_navigate(
+    to: fn url -> %ExLiveUrl.Url{url | path: ExLiveUrl.Path.new("/")} end,
+    replace: true
+  )
+  ```
   """
-  @doc since: "0.2.0"
-  @spec send_operation((ExLiveUrl.Url.t() -> ExLiveUrl.Operation.t())) :: :ok
-  defdelegate send_operation(fun), to: ExLiveUrl.Client
+  @doc since: "0.3.0"
+  def push_navigate(pid \\ self(), opts) do
+    opts |> ExLiveUrl.PushNavigateOperation.new() |> ExLiveUrl.Operation.send(pid)
+  end
 
   @doc """
-  Asynchronously build and apply an operation. The build function takes the current `ExLiveUrl.Url` as an argument and must return an `ExLiveUrl.Operation`. The given pid must be a root live view.
+  Asynchronously annotates the socket for redirect to a destination path. Whenever this operation is eventually executed it calls `Phoenix.LiveView.redirect/2` internally.
+
+  > Note: LiveView redirects rely on instructing client to perform a `window.location` update on the provided redirect location. The whole page will be reloaded and all state will be discarded.
+
+  ## Options
+
+  - `:to` - a function which takes the current `ExLiveUrl.Url` and must return either a new `ExLiveUrl.Url` or a relative url string. It must always be a local path.
+  - `:external` - a function which takes the current `ExLiveUrl.Url` and must return either a new `ExLiveUrl.Url` or a fully qualified url string.
+
+  ## Examples
+
+  ```elixir
+  ExLiveUrl.redirect(to: fn url -> %ExLiveUrl.Url{url | path: ExLiveUrl.Path.new("/")} end)
+  ExLiveUrl.redirect(to: fn _url -> "/"} end)
+  ExLiveUrl.redirect(external: fn _url -> "https://google.com"} end)
+  ```
   """
-  @doc since: "0.2.0"
-  @spec send_operation(pid(), (ExLiveUrl.Url.t() -> ExLiveUrl.Operation.t())) :: :ok
-  defdelegate send_operation(pid, fun), to: ExLiveUrl.Client
+  @doc since: "0.3.0"
+  def redirect(pid \\ self(), opts) do
+    opts |> ExLiveUrl.RedirectOperation.new() |> ExLiveUrl.Operation.send(pid)
+  end
 end
