@@ -63,7 +63,7 @@ defmodule ExLiveUrl.Url do
   @doc since: "0.3.0"
   @spec to_relative_target(t()) :: String.t()
   def to_relative_target(%__MODULE__{} = url_state) do
-    "#{url_state.path}?#{Plug.Conn.Query.encode(url_state.params)}"
+    "#{url_state.path}?#{url_state.params}"
   end
 
   @doc """
