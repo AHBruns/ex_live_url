@@ -62,16 +62,24 @@ defmodule ExLiveUrl.Url do
   """
   @doc since: "0.3.0"
   @spec to_relative_target(t()) :: String.t()
-  def to_relative_target(%__MODULE__{} = url_state) do
-    "#{url_state.path}?#{url_state.params}"
-  end
+  def to_relative_target(%__MODULE__{} = url), do: "#{url.path}?#{url.params}"
 
   @doc """
   TODO
   """
   @doc since: "0.3.0"
   @spec to_absolute_target(t()) :: String.t()
-  def to_absolute_target(%__MODULE__{} = url_state) do
-    "#{url_state.scheme}://#{url_state.host}:#{url_state.port}#{to_relative_target(url_state)}"
+  def to_absolute_target(%__MODULE__{} = url), do: to_string(url)
+
+  defimpl String.Chars do
+    def to_string(url) do
+      "#{url.scheme}://#{url.host}:#{url.port}#{ExLiveUrl.Url.to_relative_target(url)}"
+    end
+  end
+
+  defimpl Inspect do
+    def inspect(url, _opts) do
+      Inspect.Algebra.concat(["ExLiveUrl.Url.new(", "\"" <> to_string(url) <> "\"", ")"])
+    end
   end
 end
