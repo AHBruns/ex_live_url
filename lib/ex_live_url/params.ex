@@ -51,6 +51,25 @@ defmodule ExLiveUrl.Params do
     end
   end
 
+  defimpl Enumerable do
+    def count(params), do: Enumerable.count(params.entries)
+    def member?(params, maybe_entry), do: Enumerable.member?(params.entries, maybe_entry)
+    def reduce(params, command, fun), do: Enumerable.reduce(params.entries, command, fun)
+    def slice(params), do: Enumerable.slice(params.entries)
+  end
+
+  defimpl Collectable do
+    def into(initial_params) do
+      {initial_entries, collector} = Collectable.Map.into(initial_params.entries)
+
+      {initial_entries,
+       fn
+         entries, :done -> ExLiveUrl.Params.new(entries)
+         entries, command -> collector.(entries, command)
+       end}
+    end
+  end
+
   defp validate!(value) when is_binary(value) do
     value
   end
